@@ -31,7 +31,8 @@ export const environmentService = {
       // but usually JSON.stringify handles it if we use .toJSON() or just rely on frontend handling _id.
       // For now, let's just return the docs. The frontend might need to update 'id' to '_id' or we map it.
       return envs.map(e => {
-        const obj = e.toObject();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const obj = e.toObject() as any;
         obj.id = obj._id.toString();
         return obj as IEnvironment;
       });
@@ -44,7 +45,8 @@ export const environmentService = {
   async getById(id: string): Promise<IEnvironment | null> {
     const env = await Environment.findById(id);
     if (env) {
-       const obj = env.toObject();
+       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       const obj = env.toObject() as any;
        obj.id = obj._id.toString();
        return obj as IEnvironment;
     }
@@ -57,7 +59,8 @@ export const environmentService = {
       command: "echo '{{PASSWORD}}' | su -c 'cd /usr/local/freeswitch/bin/ && ps aux | grep freeswitch && pkill -9 freeswitch && sync && echo 3 > /proc/sys/vm/drop_caches && ./freeswitch'"
     });
     await newEnv.save();
-    const obj = newEnv.toObject();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const obj = newEnv.toObject() as any;
     obj.id = obj._id.toString();
     return obj as IEnvironment;
   },
@@ -65,7 +68,8 @@ export const environmentService = {
   async update(id: string, data: Partial<IEnvironment>): Promise<IEnvironment | null> {
     const updated = await Environment.findByIdAndUpdate(id, data, { new: true });
     if (updated) {
-        const obj = updated.toObject();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const obj = updated.toObject() as any;
         obj.id = obj._id.toString();
         return obj as IEnvironment;
     }
