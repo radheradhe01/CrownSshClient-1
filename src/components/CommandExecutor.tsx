@@ -30,9 +30,18 @@ export const CommandExecutor: React.FC = () => {
   useEffect(() => {
     // Determine WS URL dynamically to support remote deployments
     // We connect through the Nginx proxy (same host/port) using the /api/ path
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // Includes hostname and port
-    const wsUrl = `${protocol}//${host}/api/`;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    let wsUrl: string;
+
+    if (apiUrl) {
+      const url = new URL(apiUrl);
+      const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${url.host}/api/`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host; // Includes hostname and port
+      wsUrl = `${protocol}//${host}/api/`;
+    }
     
     console.log(`Connecting to WebSocket at: ${wsUrl}`);
     const ws = new WebSocket(wsUrl);
