@@ -1,10 +1,21 @@
-import React from 'react';
-import { Terminal } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Terminal, AlertCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
+
   const handleGoogleLogin = () => {
     // Determine the API URL based on environment or window location
-    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       
     window.location.href = `${apiUrl}/api/auth/google`;
   };
@@ -23,6 +34,16 @@ export default function Login() {
             Sign in to access your virtual machines and environments
           </p>
         </div>
+
+        {error && (
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-md flex items-start gap-3 text-red-400 text-sm">
+            <AlertCircle className="shrink-0 mt-0.5" size={18} />
+            <div className="flex-1">
+              <div className="font-semibold mb-1">Login Error</div>
+              {error}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleGoogleLogin}

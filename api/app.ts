@@ -45,7 +45,7 @@ app.use((req, res, next) => {
 app.set('trust proxy', 1);
 
 app.use(cors({
-  origin: true, // Allow all origins in production if behind proxy, or configure via env
+  origin: process.env.FRONTEND_URL || true,
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -63,8 +63,9 @@ app.use(session({
     touchAfter: 24 * 3600 // time period in seconds: 24 hours
   }),
   cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 24 * 14 // 14 days
+    secure: process.env.NODE_ENV === 'production' || !!process.env.FRONTEND_URL?.startsWith('https'),
+    maxAge: 1000 * 60 * 60 * 24 * 14, // 14 days
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   }
 }));
 
