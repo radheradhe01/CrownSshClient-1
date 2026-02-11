@@ -31,7 +31,7 @@ export const GlobalSearch: React.FC = () => {
         try {
           const res = await fetch(`${API_URL}/api/vms?search=${encodeURIComponent(query)}`);
           if (res.ok) {
-            const data = await res.json();
+            const { data } = await res.json();
             setResults(data);
             setIsOpen(true);
           }

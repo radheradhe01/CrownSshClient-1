@@ -26,18 +26,50 @@ export const CommandExecutor: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:7002');
+    // Determine WS URL dynamically to support remote deployments
+    let wsUrl = import.meta.env.VITE_WS_URL;
     
+    if (!wsUrl) {
+      // Fallback: Construct URL based on current window location
+      // Assuming backend is on port 7002 on the same hostname
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = window.location.hostname;
+      wsUrl = `${protocol}//${hostname}:7002`;
+    }
+
+    console.log(`Connecting to WebSocket at: ${wsUrl}`);
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connection established');
+    };
+
     ws.onmessage = (event) => {
-      const { type, payload } = JSON.parse(event.data);
-      if (type === 'output') {
-        addLog({ ...payload, timestamp: Date.now() });
-      } else if (type === 'status') {
-        updateStatus(payload);
+      try {
+        const { type, payload } = JSON.parse(event.data);
+        if (type === 'output') {
+          addLog({ ...payload, timestamp: Date.now() });
+        } else if (type === 'status') {
+          updateStatus(payload);
+        }
+      } catch (error) {
+        console.error('Failed to process WebSocket message:', error);
       }
     };
 
-    return () => ws.close();
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+    };
   }, [addLog, updateStatus]);
 
   useEffect(() => {
@@ -53,7 +85,9 @@ export const CommandExecutor: React.FC = () => {
     clearLogs();
 
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:7002'}/api/execute`, {
+      // Use relative path to leverage Nginx proxy
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      await fetch(`${apiUrl}/api/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vmIds: selectedVmIds, command }),

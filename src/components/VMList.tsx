@@ -1,17 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useVMStore } from '../store/vmStore';
 import { useEnvStore } from '../store/envStore';
-import { Plus, Trash2, Server, CheckSquare, Square, Edit2, X } from 'lucide-react';
+import { Plus, Trash2, Server, CheckSquare, Square, Edit2, X, Loader } from 'lucide-react';
 import { VM } from '../types';
 
 export const VMList: React.FC = () => {
-  const { vms, selectedVmIds, toggleVMSelection, selectAllVMs, deselectAllVMs, addVM, updateVM, deleteVM } = useVMStore();
+  const { 
+    vms, selectedVmIds, toggleVMSelection, selectAllVMs, deselectAllVMs, 
+    addVM, updateVM, deleteVM, 
+    fetchVMs, page, hasMore, isLoading 
+  } = useVMStore();
   const { selectedEnvId } = useEnvStore();
   
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({ name: '', ip: '', username: '', password: '', port: 22 });
+
+  // Infinite Scroll Observer
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading) {
+          fetchVMs(selectedEnvId || undefined, page + 1);
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, page, selectedEnvId, fetchVMs]);
 
   const resetForm = () => {
     setFormData({ name: '', ip: '', username: '', password: '', port: 22 });
@@ -160,7 +184,12 @@ export const VMList: React.FC = () => {
           </div>
         ))}
         
-        {vms.length === 0 && (
+        {/* Loading Indicator & Observer Target */}
+        <div ref={observerTarget} className="p-4 flex justify-center">
+          {isLoading && <Loader className="animate-spin text-zinc-500" size={20} />}
+        </div>
+
+        {!isLoading && vms.length === 0 && (
           <div className="text-center p-4 text-zinc-600 text-sm">
             No VMs in this environment.
           </div>

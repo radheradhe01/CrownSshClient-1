@@ -13,7 +13,7 @@ export interface VM {
 }
 
 export const vmService = {
-  async getAll(environmentId?: string, search?: string): Promise<VM[]> {
+  async getAll(environmentId?: string, search?: string, page: number = 1, limit: number = 20): Promise<{ data: VM[], total: number }> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const query: any = {};
@@ -23,20 +23,6 @@ export const vmService = {
       }
       
       if (search) {
-        // Use text search if possible, otherwise fallback to regex
-        // Since we added a text index, we can try using $text
-        // However, $text search is full-word based. Users often want partial match (e.g. "192.168").
-        // For best UX with partial matches, we keep Regex but optimize if possible.
-        // MongoDB regex on indexed fields is efficient if anchored (^prefix), but we want 'contains'.
-        // 'contains' regex cannot use standard B-Tree index effectively for lookups, but we can't change that without changing requirements.
-        // But we added text index - let's use it for relevance if the user types words.
-        // Actually, for "speed" in partial search, regex is the only way in MongoDB without external search engines (Elastic/Algolia).
-        // Let's stick to Regex but maybe ensure it's not blocking.
-        // Optimally, we can check if the search term looks like a keyword and use $text, but $regex is safer for "substrings".
-        
-        // Let's optimize by not using $or on 3 fields if we can avoid it, but we need all 3.
-        // The most important thing is limiting the result set if it's too large.
-        
         const regex = new RegExp(search, 'i');
         query.$or = [
           { name: regex },
@@ -45,10 +31,14 @@ export const vmService = {
         ];
       }
 
-      // Limit results to avoid sending massive data for broad queries
-      const vms = await VMModel.find(query).limit(20);
+      const skip = (page - 1) * limit;
+
+      const [vms, total] = await Promise.all([
+        VMModel.find(query).skip(skip).limit(limit),
+        VMModel.countDocuments(query)
+      ]);
       
-      return vms.map(v => {
+      const mappedVMs = vms.map(v => {
         const obj = v.toObject();
         return {
           id: obj._id.toString(),
@@ -60,9 +50,11 @@ export const vmService = {
           environmentId: obj.environmentId
         };
       });
+
+      return { data: mappedVMs, total };
     } catch (error) {
       logger.error('Error fetching VMs:', error);
-      return [];
+      return { data: [], total: 0 };
     }
   },
 

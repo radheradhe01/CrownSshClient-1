@@ -7,6 +7,11 @@ interface VMState {
   logs: ExecutionLog[];
   statuses: Record<string, 'pending' | 'running' | 'success' | 'error'>;
   
+  // Pagination state
+  page: number;
+  hasMore: boolean;
+  isLoading: boolean;
+
   setVMs: (vms: VM[]) => void;
   toggleVMSelection: (id: string) => void;
   selectAllVMs: () => void;
@@ -15,7 +20,7 @@ interface VMState {
   updateStatus: (status: ExecutionStatus) => void;
   clearLogs: () => void;
   
-  fetchVMs: (envId?: string) => Promise<void>;
+  fetchVMs: (envId?: string, page?: number) => Promise<void>;
   addVM: (vm: Omit<VM, 'id'>) => Promise<void>;
   updateVM: (id: string, vm: Partial<VM>) => Promise<void>;
   deleteVM: (id: string) => Promise<void>;
@@ -28,6 +33,9 @@ export const useVMStore = create<VMState>((set, get) => ({
   selectedVmIds: [],
   logs: [],
   statuses: {},
+  page: 1,
+  hasMore: true,
+  isLoading: false,
 
   setVMs: (vms) => set({ vms }),
   
@@ -48,27 +56,37 @@ export const useVMStore = create<VMState>((set, get) => ({
 
   clearLogs: () => set({ logs: [], statuses: {} }),
 
-  fetchVMs: async (envId) => {
-    const { vms, selectedVmIds } = get();
-    // Optimistic check: if we already have VMs for this env (filtered in memory), maybe don't fetch?
-    // But we need fresh data. 
-    // Let's implement simple caching or just rely on React Query / SWR in future.
-    // For now, to reduce "stutter", we can avoid clearing state immediately.
+  fetchVMs: async (envId, page = 1) => {
+    const { vms } = get();
     
+    // If loading first page, reset state
+    if (page === 1) {
+      set({ isLoading: true, selectedVmIds: [] }); // Clear selection on new env/search
+    } else {
+      set({ isLoading: true });
+    }
+
     try {
-      const url = envId 
-        ? `${API_URL}/api/vms?environmentId=${envId}`
-        : `${API_URL}/api/vms`;
-      const res = await fetch(url);
-      const newVms = await res.json();
+      const url = new URL(`${API_URL}/api/vms`);
+      if (envId) url.searchParams.append('environmentId', envId);
+      url.searchParams.append('page', page.toString());
+      url.searchParams.append('limit', '20');
+
+      const res = await fetch(url.toString());
+      const { data, total } = await res.json();
       
-      // Only update if data changed to avoid re-renders? 
-      // JSON.stringify comparison is expensive but better than UI flicker for small datasets
-      if (JSON.stringify(newVms) !== JSON.stringify(vms)) {
-         set({ vms: newVms, selectedVmIds: [] });
-      }
+      set((state) => {
+        const newVMs = page === 1 ? data : [...state.vms, ...data];
+        return {
+          vms: newVMs,
+          page,
+          hasMore: newVMs.length < total,
+          isLoading: false
+        };
+      });
     } catch (error) {
       console.error('Failed to fetch VMs', error);
+      set({ isLoading: false });
     }
   },
 

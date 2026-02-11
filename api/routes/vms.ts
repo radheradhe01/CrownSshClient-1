@@ -8,8 +8,11 @@ const router = Router();
 router.get('/', async (req, res) => {
   const environmentId = req.query.environmentId as string | undefined;
   const search = req.query.search as string | undefined;
-  const vms = await vmService.getAll(environmentId, search);
-  res.json(vms);
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  
+  const result = await vmService.getAll(environmentId, search, page, limit);
+  res.json(result);
 });
 
 router.post('/', validate(createVMSchema), async (req, res) => {
