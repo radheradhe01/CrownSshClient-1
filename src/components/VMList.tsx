@@ -27,7 +27,10 @@ export const VMList: React.FC = () => {
           fetchVMs(selectedEnvId || undefined, page + 1);
         }
       },
-      { threshold: 1.0 }
+      { 
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
     );
 
     if (observerTarget.current) {

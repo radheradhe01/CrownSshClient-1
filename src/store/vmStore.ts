@@ -139,12 +139,36 @@ export const useVMStore = create<VMState>((set, get) => ({
         // Remove duplicates just in case
         const uniqueVMs = Array.from(new Map(newVMs.map(item => [item.id, item])).values()) as VM[];
 
-        return {
-          vms: uniqueVMs,
-          page,
-          hasMore: uniqueVMs.length < total,
-          isLoading: false
-        };
+        // Pre-fetch next page if available
+      const hasNextPage = uniqueVMs.length < total;
+      if (hasNextPage) {
+           setTimeout(() => {
+               const nextParams = new URLSearchParams();
+               if (envId) nextParams.append('environmentId', envId);
+               nextParams.append('page', (page + 1).toString());
+               nextParams.append('limit', '20');
+               
+               // Just fetch to warm up cache/browser buffer, don't update state yet
+               // Better: let the IntersectionObserver handle the state update, 
+               // but we can warm the cache here.
+               const nextCacheKey = `${envId || 'all'}_page_${page + 1}`;
+               if (!vmCache.has(nextCacheKey)) {
+                   fetch(`${API_URL}/api/vms?${nextParams.toString()}`)
+                      .then(r => r.json())
+                      .then(({ data: nextData, total: nextTotal }) => {
+                          vmCache.set(nextCacheKey, { data: nextData, total: nextTotal, timestamp: Date.now() });
+                      })
+                      .catch(() => {}); // Ignore errors on prefetch
+               }
+           }, 500); // Small delay to prioritize main thread
+      }
+
+      return {
+        vms: uniqueVMs,
+        page,
+        hasMore: hasNextPage,
+        isLoading: false
+      };
       });
     } catch (error) {
       console.error('Failed to fetch VMs', error);
