@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { useVMStore } from '../store/vmStore';
-import { useShallow } from 'zustand/react/shallow';
 import { useEnvStore } from '../store/envStore';
 import { Plus, Server, CheckSquare, Square, X, Loader } from 'lucide-react';
 import { VM } from '../types';
@@ -14,7 +13,7 @@ export const VMList: React.FC = () => {
     vms, selectedVmIds, toggleVMSelection, selectAllVMs, deselectAllVMs, 
     addVM, updateVM, deleteVM, 
     fetchVMs, page, hasMore, isLoading 
-  } = useVMStore(useShallow(state => ({
+  } = useVMStore(state => ({
     vms: state.vms,
     selectedVmIds: state.selectedVmIds,
     toggleVMSelection: state.toggleVMSelection,
@@ -27,7 +26,7 @@ export const VMList: React.FC = () => {
     page: state.page,
     hasMore: state.hasMore,
     isLoading: state.isLoading
-  })));
+  }));
   const { selectedEnvId } = useEnvStore();
   
   const [isEditing, setIsEditing] = useState(false);
