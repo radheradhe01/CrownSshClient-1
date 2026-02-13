@@ -6,42 +6,19 @@ import { VM } from '../types';
 
 export const VMList: React.FC = () => {
   // Optimize selector to prevent unnecessary re-renders
-  const { 
-    vms, selectedVmIds, toggleVMSelection, selectAllVMs, deselectAllVMs, 
-    addVM, updateVM, deleteVM, 
-    fetchVMs, page, hasMore, isLoading 
-  } = useVMStore(state => ({
-    vms: state.vms,
-    selectedVmIds: state.selectedVmIds,
-    toggleVMSelection: state.toggleVMSelection,
-    selectAllVMs: state.selectAllVMs,
-    deselectAllVMs: state.deselectAllVMs,
-    addVM: state.addVM,
-    updateVM: state.updateVM,
-    deleteVM: state.deleteVM,
-    fetchVMs: state.fetchVMs,
-    page: state.page,
-    hasMore: state.hasMore,
-    isLoading: state.isLoading
-  }), (oldState, newState) => {
-    // Custom shallow comparison or rely on zustand's default shallow?
-    // Zustands default is strict equality for objects returned by selector unless shallow is used.
-    // We need to use shallow from 'zustand/shallow' or import it.
-    // For now, simpler is to break it down or accept this optimization step if we import shallow.
-    // Since I can't easily add new npm packages, I will rely on breaking down the selector if needed
-    // OR just return the object and hope for the best if I can't import shallow?
-    // Wait, the previous code was `useVMStore()`, which returns the WHOLE state.
-    // Any change to logs triggers re-render.
-    // By selecting specific fields, we avoid re-renders when `logs` or `statuses` change.
-    return (
-        oldState.vms === newState.vms &&
-        oldState.selectedVmIds === newState.selectedVmIds &&
-        oldState.page === newState.page &&
-        oldState.hasMore === newState.hasMore &&
-        oldState.isLoading === newState.isLoading
-        // Functions are stable references in zustand usually
-    );
-  });
+  const vms = useVMStore(state => state.vms);
+  const selectedVmIds = useVMStore(state => state.selectedVmIds);
+  const toggleVMSelection = useVMStore(state => state.toggleVMSelection);
+  const selectAllVMs = useVMStore(state => state.selectAllVMs);
+  const deselectAllVMs = useVMStore(state => state.deselectAllVMs);
+  const addVM = useVMStore(state => state.addVM);
+  const updateVM = useVMStore(state => state.updateVM);
+  const deleteVM = useVMStore(state => state.deleteVM);
+  const fetchVMs = useVMStore(state => state.fetchVMs);
+  const page = useVMStore(state => state.page);
+  const hasMore = useVMStore(state => state.hasMore);
+  const isLoading = useVMStore(state => state.isLoading);
+
   const { selectedEnvId } = useEnvStore();
   
   const [isEditing, setIsEditing] = useState(false);
