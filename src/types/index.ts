@@ -19,7 +19,10 @@ export interface Environment {
 export interface User {
   id: string;
   displayName: string;
+  email?: string;
   photos?: { value: string }[];
+  role: 'admin' | 'user';
+  isTotpEnabled?: boolean;
 }
 
 export interface ExecutionLog {

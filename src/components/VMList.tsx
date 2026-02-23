@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useVMStore } from '../store/vmStore';
 import { useEnvStore } from '../store/envStore';
+import { useAuthStore } from '../store/authStore';
 import { Plus, Trash2, Server, CheckSquare, Square, Edit2, X, Loader, Pin } from 'lucide-react';
 import { VM } from '../types';
 
@@ -21,10 +22,11 @@ export const VMList: React.FC = () => {
   const isLoading = useVMStore(state => state.isLoading);
 
   const { selectedEnvId } = useEnvStore();
-  
+  const { isAdmin } = useAuthStore();
+
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({ name: '', ip: '', username: '', password: '', port: 22 });
 
   // Infinite Scroll Observer
@@ -37,7 +39,7 @@ export const VMList: React.FC = () => {
           fetchVMs(selectedEnvId || undefined, page + 1);
         }
       },
-      { 
+      {
         threshold: 0.1,
         rootMargin: '100px'
       }
@@ -113,19 +115,21 @@ export const VMList: React.FC = () => {
             </button>
           )}
         </div>
-        <button
-          onClick={() => { resetForm(); setIsEditing(!isEditing); }}
-          className={`p-1 rounded transition-colors ${isEditing && !editingId ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800'}`}
-        >
-          {isEditing && !editingId ? <X size={20} /> : <Plus size={20} />}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => { resetForm(); setIsEditing(!isEditing); }}
+            className={`p-1 rounded transition-colors ${isEditing && !editingId ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800'}`}
+          >
+            {isEditing && !editingId ? <X size={20} /> : <Plus size={20} />}
+          </button>
+        )}
       </div>
 
-      {isEditing && (
+      {isEditing && isAdmin && (
         <form onSubmit={handleSubmit} className="p-4 bg-zinc-800/50 border-b border-zinc-800 space-y-3">
           <div className="flex justify-between items-center mb-2">
-             <span className="text-xs font-semibold uppercase text-zinc-500">{editingId ? 'Edit VM' : 'Add VM'}</span>
-             <button type="button" onClick={resetForm}><X size={14} className="text-zinc-500" /></button>
+            <span className="text-xs font-semibold uppercase text-zinc-500">{editingId ? 'Edit VM' : 'Add VM'}</span>
+            <button type="button" onClick={resetForm}><X size={14} className="text-zinc-500" /></button>
           </div>
           <input
             type="text"
@@ -180,15 +184,14 @@ export const VMList: React.FC = () => {
         {vms.map((vm) => (
           <div
             key={vm.id}
-            className={`group flex items-center justify-between p-2 rounded cursor-pointer ${
-              selectedVmIds.includes(vm.id) ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
-            }`}
+            className={`group flex items-center justify-between p-2 rounded cursor-pointer ${selectedVmIds.includes(vm.id) ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
+              }`}
             onClick={() => toggleVMSelection(vm.id)}
           >
             <div className="flex items-center gap-3 overflow-hidden">
               {/* Always show Pin if pinned, otherwise show selection checkbox */}
               {vm.isPinned && !selectedVmIds.includes(vm.id) ? (
-                 <Pin size={16} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+                <Pin size={16} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
               ) : selectedVmIds.includes(vm.id) ? (
                 <CheckSquare size={16} className="text-blue-500 flex-shrink-0" />
               ) : (
@@ -199,36 +202,38 @@ export const VMList: React.FC = () => {
                 <div className="text-xs text-zinc-500 truncate">{vm.username}@{vm.ip}</div>
               </div>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updateVM(vm.id, { isPinned: !vm.isPinned });
-                }}
-                className={`p-1 hover:text-yellow-400 transition-colors ${vm.isPinned ? 'text-yellow-500 opacity-100' : 'text-zinc-500'}`}
-                title={vm.isPinned ? "Unpin VM" : "Pin VM"}
-              >
-                <Pin size={14} fill={vm.isPinned ? "currentColor" : "none"} />
-              </button>
-               <button
-                onClick={(e) => handleEditClick(vm, e)}
-                className="p-1 hover:text-blue-400 transition-colors text-zinc-500"
-              >
-                <Edit2 size={14} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if(confirm('Are you sure you want to delete this VM?')) deleteVM(vm.id);
-                }}
-                className="p-1 hover:text-red-400 transition-colors text-zinc-500"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateVM(vm.id, { isPinned: !vm.isPinned });
+                  }}
+                  className={`p-1 hover:text-yellow-400 transition-colors ${vm.isPinned ? 'text-yellow-500 opacity-100' : 'text-zinc-500'}`}
+                  title={vm.isPinned ? "Unpin VM" : "Pin VM"}
+                >
+                  <Pin size={14} fill={vm.isPinned ? "currentColor" : "none"} />
+                </button>
+                <button
+                  onClick={(e) => handleEditClick(vm, e)}
+                  className="p-1 hover:text-blue-400 transition-colors text-zinc-500"
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('Are you sure you want to delete this VM?')) deleteVM(vm.id);
+                  }}
+                  className="p-1 hover:text-red-400 transition-colors text-zinc-500"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )}
           </div>
         ))}
-        
+
         {/* Loading Indicator & Observer Target */}
         <div ref={observerTarget} className="p-4 flex justify-center">
           {isLoading && <Loader className="animate-spin text-zinc-500" size={20} />}

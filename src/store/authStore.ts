@@ -6,6 +6,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   isPinVerified: boolean;
+  isAdmin: boolean;
   checkAuth: () => Promise<void>;
   logout: () => Promise<void>;
   verifyPin: (pin: string) => boolean;
@@ -19,6 +20,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   error: null,
   isPinVerified: false,
+  isAdmin: false,
 
   checkAuth: async () => {
     try {
@@ -30,9 +32,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (res.ok) {
         const data = await res.json();
-        set({ user: data.user, isLoading: false });
+        set({
+          user: data.user,
+          isAdmin: data.user?.role === 'admin',
+          isLoading: false,
+        });
       } else if (res.status === 401 || res.status === 403) {
-        set({ user: null, isLoading: false });
+        set({ user: null, isAdmin: false, isLoading: false });
       } else {
         set({ error: `Server error: ${res.status}`, isLoading: false });
       }
@@ -48,7 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         method: 'POST',
         credentials: 'include'
       });
-      set({ user: null, isPinVerified: false });
+      set({ user: null, isPinVerified: false, isAdmin: false });
     } catch (error) {
       console.error('Logout failed', error);
     }

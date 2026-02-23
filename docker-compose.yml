@@ -4,8 +4,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    ports:
-      - "7002:7002"
+    # NO public ports — only accessible within the Docker network
+    # Nginx in the frontend container proxies /api/* to this service
+    expose:
+      - "7002"
     env_file:
       - .env
     environment:
@@ -16,30 +18,33 @@ services:
       - app-network
     depends_on:
       - redis
+    restart: unless-stopped
 
   redis:
     image: redis:alpine
     container_name: crownsshclient-redis
-    ports:
-      - "6379:6379"
+    # NO public ports — only accessible within the Docker network
+    expose:
+      - "6379"
     networks:
       - app-network
+    restart: unless-stopped
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        - VITE_API_URL=${VITE_API_URL}
-        - VITE_WS_URL=${VITE_WS_URL}
-        - BACKEND_PORT=${PORT}
+        - BACKEND_PORT=7002
         - VITE_REQUIRED_PIN=${VITE_REQUIRED_PIN}
     ports:
+      # Only the frontend (Nginx) is exposed to the internet
       - "7001:80"
     networks:
       - app-network
     depends_on:
       - backend
+    restart: unless-stopped
 
 networks:
   app-network:

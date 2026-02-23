@@ -18,11 +18,11 @@ export const vmService = {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const query: any = {};
-      
+
       if (environmentId) {
         query.environmentId = environmentId;
       }
-      
+
       if (search) {
         // Use MongoDB Text Search for high performance
         // This uses the text index we created on name, ip, and username
@@ -38,7 +38,7 @@ export const vmService = {
           .select({ score: { $meta: "textScore" } })
           .sort({ isPinned: -1, score: { $meta: "textScore" } }) // Sort by pinned first, then relevance
           .limit(limit);
-        
+
         const mappedVMs = vms.map(v => {
           const obj = v.toObject();
           return {
@@ -62,7 +62,7 @@ export const vmService = {
           .limit(limit),
         VMModel.countDocuments(query)
       ]);
-      
+
       const mappedVMs = vms.map(v => {
         const obj = v.toObject();
         return {
@@ -90,13 +90,13 @@ export const vmService = {
       if (!v) return undefined;
       const obj = v.toObject();
       return {
-          id: obj._id.toString(),
-          name: obj.name,
-          ip: obj.ip,
-          username: obj.username,
-          password: obj.password,
-          port: obj.port,
-          environmentId: obj.environmentId
+        id: obj._id.toString(),
+        name: obj.name,
+        ip: obj.ip,
+        username: obj.username,
+        password: obj.password,
+        port: obj.port,
+        environmentId: obj.environmentId
       };
     } catch (error) {
       logger.error('Error fetching VM:', error);
@@ -110,7 +110,7 @@ export const vmService = {
       port: vmData.port || 22,
     });
     await newVM.save();
-    
+
     const obj = newVM.toObject();
     return {
       id: obj._id.toString(),
@@ -125,10 +125,13 @@ export const vmService = {
   },
 
   async update(id: string, vmData: Partial<VM>): Promise<VM | null> {
-    const updated = await VMModel.findByIdAndUpdate(id, vmData, { new: true });
-    if (!updated) return null;
-    
-    const obj = updated.toObject();
+    const vm = await VMModel.findById(id);
+    if (!vm) return null;
+
+    Object.assign(vm, vmData);
+    await vm.save();
+
+    const obj = vm.toObject();
     return {
       id: obj._id.toString(),
       name: obj.name,

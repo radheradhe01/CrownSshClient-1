@@ -18,20 +18,22 @@ import { rateLimit } from 'express-rate-limit'
 import morgan from 'morgan'
 import logger from './utils/logger.js'
 import { AppError } from './utils/AppError.js'
+import { User } from './models/User.js'
+import { ipWhitelist } from './middleware/ipWhitelist.js'
 
 import authRoutes from './routes/auth.js'
 import vmRoutes from './routes/vms.js'
 import environmentRoutes from './routes/environments.js'
 import executionRoutes from './routes/execution.js'
-
-// for esm mode
-// const __filename = fileURLToPath(import.meta.url)
-// const __dirname = path.dirname(__filename)
+import totpRoutes from './routes/totp.js'
 
 const app: express.Application = express()
 
-// Trust proxy (required for Nginx/Cloudflare and secure cookies)
-app.set('trust proxy', true);
+// Trust exactly 1 proxy hop (the Nginx container in front of this backend)
+app.set('trust proxy', 1);
+
+// IP whitelist — must be first to block unauthorized IPs early
+app.use(ipWhitelist);
 
 // Basic security & performance middleware
 app.use(helmet())
@@ -77,9 +79,8 @@ app.use(session({
     touchAfter: 24 * 3600 // time period in seconds: 24 hours
   }),
   cookie: {
-    // Only use secure cookies if NODE_ENV is production and we are not in development mode.
-    // This avoids needing to check for 'localhost' specifically.
-    secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE === 'true',
+    // Determine secure cookies purely based on node environment
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 1000 * 60 * 60 * 24 * 14, // 14 days
     sameSite: 'lax'
   }
@@ -89,24 +90,89 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Serialize user by MongoDB _id
 passport.serializeUser((user: any, done) => {
-  done(null, user);
+  done(null, user._id?.toString() || user.id);
 });
 
-passport.deserializeUser((user: any, done) => {
-  done(null, user);
+// Deserialize user by looking up from DB
+// Handles both old sessions (Google profile object) and new sessions (MongoDB _id string)
+passport.deserializeUser(async (id: any, done) => {
+  try {
+    // Old session format: id is the full Google profile object
+    if (typeof id === 'object' && id !== null) {
+      const googleId = id.id || id.sub || id.googleId;
+      if (googleId) {
+        let user = await User.findOne({ googleId });
+        if (!user) {
+          // Migrate: create the user from the old profile data
+          const userCount = await User.countDocuments();
+          user = new User({
+            googleId,
+            displayName: id.displayName || id.name || 'User',
+            email: id.emails?.[0]?.value || id.email || '',
+            photo: id.photos?.[0]?.value || id.picture || '',
+            role: userCount === 0 ? 'admin' : 'user',
+          });
+          await user.save();
+          logger.info(`Migrated old session user: ${user.email} with role: ${user.role}`);
+        }
+        const userObj = user.toObject() as any;
+        userObj.id = userObj._id.toString();
+        return done(null, userObj);
+      }
+      return done(null, false);
+    }
+
+    // New session format: id is a MongoDB ObjectId string
+    const user = await User.findById(id);
+    if (user) {
+      const userObj = user.toObject() as any;
+      userObj.id = userObj._id.toString();
+      done(null, userObj);
+    } else {
+      done(null, false);
+    }
+  } catch (err) {
+    logger.error('Deserialize user error:', err);
+    done(null, false); // Don't crash — just invalidate the session
+  }
 });
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    // Use the public-facing URL for the callback
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback"
+    // Using a relative path allows Passport to map to whatever host is serving the app
+    // Required for self-hosting on Coolify or any unpredictable domain/IP.
+    callbackURL: "/api/auth/google/callback"
   },
-    (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
-      // In a real app, you'd save user to DB here
-      return done(null, profile);
+    async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
+      try {
+        // Find or create user in the database
+        let user = await User.findOne({ googleId: profile.id });
+
+        if (!user) {
+          // Determine role: first user ever becomes admin
+          const userCount = await User.countDocuments();
+          const role = userCount === 0 ? 'admin' : 'user';
+
+          user = new User({
+            googleId: profile.id,
+            displayName: profile.displayName,
+            email: profile.emails?.[0]?.value || '',
+            photo: profile.photos?.[0]?.value || '',
+            role,
+          });
+          await user.save();
+          logger.info(`New user created: ${user.email} with role: ${role}`);
+        }
+
+        return done(null, user);
+      } catch (err) {
+        logger.error('Error in Google Strategy:', err);
+        return done(err, undefined);
+      }
     }));
 } else {
   logger.warn("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET not set. OAuth will not work.");
@@ -119,6 +185,7 @@ app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/vms', vmRoutes)
 app.use('/api/environments', environmentRoutes)
 app.use('/api/execute', executionRoutes)
+app.use('/api/totp', totpRoutes)
 
 /**
  * health

@@ -8,7 +8,7 @@ interface EnvState {
   fetchEnvironments: () => Promise<void>;
   addEnvironment: (name: string) => Promise<void>;
   updateEnvironment: (id: string, data: Partial<Environment>) => Promise<void>;
-  deleteEnvironment: (id: string) => Promise<void>;
+  deleteEnvironment: (id: string, totpCode?: string) => Promise<{ success: boolean; error?: string }>;
   selectEnvironment: (id: string) => void;
 }
 
@@ -24,11 +24,13 @@ export const useEnvStore = create<EnvState>((set, get) => ({
     if (get().environments.length === 0) {
       set({ isLoading: true });
     }
-    
+
     try {
-      const res = await fetch(`${API_URL}/api/environments`);
+      const res = await fetch(`${API_URL}/api/environments`, {
+        credentials: 'include',
+      });
       const data = await res.json();
-      
+
       // Compare to avoid unnecessary re-renders
       const currentEnvs = get().environments;
       if (JSON.stringify(data) !== JSON.stringify(currentEnvs)) {
@@ -52,8 +54,13 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       const res = await fetch(`${API_URL}/api/environments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ name }),
       });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to add environment');
+      }
       const newEnv = await res.json();
       set((state) => ({ environments: [...state.environments, newEnv] }));
     } catch (error) {
@@ -66,8 +73,13 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       const res = await fetch(`${API_URL}/api/environments/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(data),
       });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update environment');
+      }
       const updatedEnv = await res.json();
       set((state) => ({
         environments: state.environments.map((e) => (e.id === id ? updatedEnv : e)),
@@ -77,17 +89,28 @@ export const useEnvStore = create<EnvState>((set, get) => ({
     }
   },
 
-  deleteEnvironment: async (id: string) => {
+  deleteEnvironment: async (id: string, totpCode?: string) => {
     try {
-      await fetch(`${API_URL}/api/environments/${id}`, {
+      const res = await fetch(`${API_URL}/api/environments/${id}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ totpCode }),
       });
+
+      if (!res.ok) {
+        const err = await res.json();
+        return { success: false, error: err.error || 'Failed to delete environment' };
+      }
+
       set((state) => ({
         environments: state.environments.filter((e) => e.id !== id),
         selectedEnvId: state.selectedEnvId === id ? (state.environments[0]?.id || '') : state.selectedEnvId
       }));
+      return { success: true };
     } catch (error) {
       console.error('Failed to delete environment', error);
+      return { success: false, error: 'Network error' };
     }
   },
 

@@ -5,12 +5,10 @@ const envSchema = z.object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.string().transform(Number),
     mongo: z.string().url(),
-    FRONTEND_URL: z.string().url(),
     SESSION_SECRET: z.string().min(10),
-    REDIS_HOST: z.string().min(1),
+    REDIS_HOST: z.string().min(1).default('redis'),
     ENCRYPTION_KEY: z.string().length(64),
-    COOKIE_SECURE: z.string().transform(v => v === 'true'),
-    VITE_REQUIRED_PIN: z.string().min(4),
+    VITE_REQUIRED_PIN: z.string().min(4).default('676869'),
     // Optional but recommended
     LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 });

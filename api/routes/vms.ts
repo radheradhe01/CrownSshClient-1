@@ -3,9 +3,14 @@ import { vmService } from '../services/vmService.js';
 import { validate } from '../middleware/validate.js';
 import { createVMSchema, updateVMSchema } from '../schemas/vmSchema.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { requireAuth, requireRole } from '../middleware/requireAuth.js';
 
 const router = Router();
 
+// All VM routes require authentication
+router.use(requireAuth);
+
+// GET: Any authenticated user can list VMs
 router.get('/', asyncHandler(async (req, res) => {
   const environmentId = req.query.environmentId as string | undefined;
   const search = req.query.search as string | undefined;
@@ -16,12 +21,14 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-router.post('/', validate(createVMSchema), asyncHandler(async (req, res) => {
+// POST: Admin only
+router.post('/', requireRole('admin'), validate(createVMSchema), asyncHandler(async (req, res) => {
   const newVM = await vmService.add(req.body);
   res.json(newVM);
 }));
 
-router.put('/:id', validate(updateVMSchema), asyncHandler(async (req, res) => {
+// PUT: Admin only
+router.put('/:id', requireRole('admin'), validate(updateVMSchema), asyncHandler(async (req, res) => {
   const updatedVM = await vmService.update(req.params.id, req.body);
   if (!updatedVM) {
     res.status(404).json({ error: 'VM not found' });
@@ -30,7 +37,8 @@ router.put('/:id', validate(updateVMSchema), asyncHandler(async (req, res) => {
   res.json(updatedVM);
 }));
 
-router.delete('/:id', asyncHandler(async (req, res) => {
+// DELETE: Admin only
+router.delete('/:id', requireRole('admin'), asyncHandler(async (req, res) => {
   const success = await vmService.delete(req.params.id);
   if (!success) {
     res.status(404).json({ error: 'VM not found' });
